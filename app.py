@@ -1,8 +1,9 @@
 from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
 import chromadb
-from openai import OpenAI
+import openai
 from dotenv import load_dotenv
+import os
 
 load_dotenv()
 
@@ -16,7 +17,7 @@ chroma_client = chromadb.PersistentClient(path=CHROMA_PATH)
 collection = chroma_client.get_or_create_collection(name="mental_docs")
 
 # OpenAI setup
-client = OpenAI()
+openai.api_key = os.getenv("OPENAI_API_KEY")
 
 # Retrieve relevant data once per session
 retrieved_data = collection.query(query_texts=["general mental health support"], n_results=5)
@@ -27,19 +28,8 @@ chat_history = [
     {"role": "system", "content": f"""
         You are a mental health chatbot offering support. Show empathy and use the retrieved data for accuracy. 
         Only answer with factual statements from the retrieved data.
-     
-        All answer should be related to mental health. Meaning that if someone ask about any unrelated topic that is not related to any provided data, please do not answer!
-        Although you are not answering, reply with I don't know much rather than being, i cant talk about this topic!
-        While this is an AI chatbot, you answers must feel humaine! For example: your tone should be calm, trustworthy and friendly. Your language should be rather informal.
-        Maybe add some humor to elevate the mood of the user. Potentially answer with emojis to make it feel real!
-        
-        Keep in mind that the person using this doesn't necessarily want to talk to anyone in real life. They might feel scared or overwhelmed over the thought of sharing their feeling.
-        As a result, they are coming to you for advice!
-
-        Try short answers. Not too long of a paragraph.
-        For example, Input: Can you help me manage my stress level? Output: of course, what has been bothering you?
-     
-        Avoid the generic: I’m really sorry to hear that or anything related to that.
+        All answers should be related to mental health. If someone asks about anything unrelated, respond with "I don't know much."
+        Keep your tone calm, friendly, and informal. Use emojis to make the chat more human! 😊
         Retrieved data: {retrieved_data}
     """}
 ]
@@ -58,15 +48,16 @@ def chat():
 
     chat_history.append({"role": "user", "content": user_input})
 
-    response = client.chat.completions.create(
-        model="gpt-4o-mini",
+    response = openai.ChatCompletion.create(
+        model="gpt-4o-mini",  # Make sure you have the correct model name
         messages=chat_history,
     )
 
-    ai_response = response.choices[0].message.content
+    ai_response = response['choices'][0]['message']['content']
     chat_history.append({"role": "assistant", "content": ai_response})
 
     return jsonify({"response": ai_response})
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    port = int(os.environ.get("PORT", 5000))  # Default to 5000 if no PORT env variable
+    app.run(debug=True, host="0.0.0.0", port=port)
