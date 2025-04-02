@@ -1,0 +1,75 @@
+@font-face {
+    font-family: 'Fragmentcore';
+    /*a name to be used later*/
+    src: url('Fragmentcore.otf');
+    /*URL to font*/
+}
+.middle{
+    text-align: center;
+}
+body {
+    font-family: "Fragmentcore";
+    /* Classic terminal font */
+    background-color: black;
+    /* Old-school computer look */
+    color: lime;
+    /* Green text like vintage terminals */
+    text-align: left;
+    padding: 20px;
+    font-size: 2em;
+}
+
+
+#chat-box::-webkit-scrollbar {
+    display: none;
+    /* Chrome, Safari */
+}
+#chat-box {
+    height: 650px;
+    overflow-y: auto;
+    scrollbar-width: none;
+    /* border: 1px solid lime; */
+    padding: 10px;
+    margin-bottom: 10px;
+    text-align: left;
+    background-color: black;
+    color: lime;
+    font-size: 1em;
+}
+
+input {
+    position:fixed;
+    bottom: 0;
+    width: 80%;
+    padding: 10px;
+    background-color: black;
+    color: lime;
+    border: black;
+    border-top: 1px solid lime;
+    font-family: "Fragmentcore", monospace;
+    font-size: 1em;
+    margin-bottom: 30px;
+
+}
+
+button {
+    padding: 10px 15px;
+    position: fixed;
+    bottom: 0;
+    right: 0;
+    margin-bottom: 30px;
+    margin-right: 20px;
+    background-color: black;
+    color: lime;
+    border: 1px solid lime;
+    cursor: pointer;
+    font-family: "Fragmentcore", monospace;
+    font-size: 1em;
+    width:10%;
+
+}
+
+button:hover {
+    background-color: lime;
+    color: black;
+}
