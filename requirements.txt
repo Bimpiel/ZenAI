@@ -1,8 +1,10 @@
+flask
+flask-cors
+chromadb
+openai
+python-dotenv
 langchain
 langchain-community
 langchain-text-splitters
-chromadb
-flask
-flask-cors
-openai
-python-dotenv
+pymupdf
+pdfplumber
