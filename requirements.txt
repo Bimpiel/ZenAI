@@ -6,5 +6,4 @@ python-dotenv
 langchain
 langchain-community
 langchain-text-splitters
-pymupdf
-pdfplumber
+pypdf
