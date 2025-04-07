@@ -2,6 +2,7 @@ from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
 import chromadb
 import openai
+from openai import OpenAI  # NEW: import the new OpenAI client
 from dotenv import load_dotenv
 import os
 
@@ -17,7 +18,7 @@ chroma_client = chromadb.PersistentClient(path=CHROMA_PATH)
 collection = chroma_client.get_or_create_collection(name="mental_docs")
 
 # OpenAI setup
-openai.api_key = os.getenv("OPENAI_API_KEY")
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))  # NEW: instantiate the client
 
 # Retrieve relevant data once per session
 retrieved_data = collection.query(query_texts=["general mental health support"], n_results=5)
@@ -48,12 +49,12 @@ def chat():
 
     chat_history.append({"role": "user", "content": user_input})
 
-    response = openai.ChatCompletion.create(
-        model="gpt-4o-mini",  # Make sure you have the correct model name
+    response = client.chat.completions.create(  # NEW: updated method
+        model="gpt-4o-mini",  # Make sure this model name is correct!
         messages=chat_history,
     )
 
-    ai_response = response['choices'][0]['message']['content']
+    ai_response = response.choices[0].message.content
     chat_history.append({"role": "assistant", "content": ai_response})
 
     return jsonify({"response": ai_response})
