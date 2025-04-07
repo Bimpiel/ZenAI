@@ -48,8 +48,9 @@ def chat():
 
     chat_history.append({"role": "user", "content": user_input})
 
-    response = openai.ChatCompletion.create(
-        model="gpt-4o-mini",  # Make sure you have the correct model name
+    # Using the new OpenAI API interface
+    response = openai.completions.create(
+        model="gpt-4",  # Use the appropriate model (adjust as needed)
         messages=chat_history,
     )
 
