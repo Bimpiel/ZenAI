@@ -5,6 +5,7 @@ import openai
 from dotenv import load_dotenv
 import os
 
+# Load environment variables from .env file
 load_dotenv()
 
 # Flask setup
@@ -42,23 +43,29 @@ def home():
 def chat():
     global chat_history
 
+    # Get user input from the request
     user_input = request.json.get("message")
     if not user_input:
         return jsonify({"error": "No message provided"}), 400
 
+    # Append the user message to chat history
     chat_history.append({"role": "user", "content": user_input})
 
-    # Using the new OpenAI API interface
-    response = openai.completions.create(
-        model="gpt-4",  # Use the appropriate model (adjust as needed)
-        messages=chat_history,
+    # Use OpenAI's ChatCompletion API to generate a response
+    response = openai.ChatCompletion.create(
+        model="gpt-4",  # You can change this to another model like gpt-3.5-turbo
+        messages=chat_history,  # Provide the chat history to maintain conversation context
     )
 
+    # Extract the assistant's response from the API response
     ai_response = response['choices'][0]['message']['content']
+
+    # Append the assistant's response to the chat history
     chat_history.append({"role": "assistant", "content": ai_response})
 
+    # Return the response in JSON format
     return jsonify({"response": ai_response})
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))  # Default to 5000 if no PORT env variable
+    port = int(os.environ.get("PORT", 5000))  # Default to port 5000 if no PORT environment variable is set
     app.run(debug=True, host="0.0.0.0", port=port)
