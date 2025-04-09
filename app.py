@@ -46,6 +46,9 @@ chat_history = [
     """}
 ]
 
+# Set a maximum chat history length
+MAX_CHAT_HISTORY_LENGTH = 15  # <-- for example, keep last 15 messages
+
 @app.route("/")
 def home():
     return render_template("index.html")
@@ -62,6 +65,11 @@ def chat():
     # Append the user message to chat history
     chat_history.append({"role": "user", "content": user_input})
 
+    # Keep chat history within the limit
+    if len(chat_history) > MAX_CHAT_HISTORY_LENGTH:
+        # Always keep the first system message, trim the rest
+        chat_history = [chat_history[0]] + chat_history[-(MAX_CHAT_HISTORY_LENGTH-1):]
+
     # Use OpenAI's ChatCompletion API to generate a response
     response = openai.ChatCompletion.create(
         model="gpt-4o-mini",  # You can change this to another model like gpt-3.5-turbo
@@ -73,6 +81,10 @@ def chat():
 
     # Append the assistant's response to the chat history
     chat_history.append({"role": "assistant", "content": ai_response})
+
+    # Keep chat history within the limit again (after assistant response)
+    if len(chat_history) > MAX_CHAT_HISTORY_LENGTH:
+        chat_history = [chat_history[0]] + chat_history[-(MAX_CHAT_HISTORY_LENGTH-1):]
 
     # Return the response in JSON format
     return jsonify({"response": ai_response})
