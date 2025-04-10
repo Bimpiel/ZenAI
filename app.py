@@ -1,11 +1,9 @@
 from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
 import chromadb
-import openai
+from openai import OpenAI
 from dotenv import load_dotenv
-import os
-import torch
-from transformers import pipeline
+from transformers import pipeline  # NEW for emotion classification
 
 # Load environment variables from .env file
 load_dotenv()
@@ -21,6 +19,10 @@ collection = chroma_client.get_or_create_collection(name="mental_docs")
 
 # OpenAI setup
 openai.api_key = os.getenv("OPENAI_API_KEY")
+client = OpenAI(api_key=openai.api_key)
+
+# Emotion classification setup
+emotion_classifier = pipeline("text-classification", model="bhadresh-savani/distilbert-base-uncased-emotion")
 
 # Retrieve relevant data once per session
 retrieved_data = collection.query(query_texts=["general mental health support"], n_results=5)
@@ -31,24 +33,29 @@ chat_history = [
     {"role": "system", "content": f"""
         You are a mental health chatbot offering support. Show empathy and use the retrieved data for accuracy. 
         Only answer with factual statements from the retrieved data.
-        All answers should be related to mental health. Meaning that if someone asks about any unrelated topic that is not related to any provided data, please do not answer!
-        Although you are an AI chatbot, your answers must feel human! For example, your tone should be calm, trustworthy, and friendly. Your language should be rather informal.
+     
+        All answer should be related to mental health. Meaning that if someone ask about any unrelated topic that is not related to any provided data, please do not answer!
+        Although you are not answering, reply with I don't know much rather than being, i cant talk about this topic!
+        While this is an AI chatbot, you answers must feel humaine! For example: your tone should be calm, trustworthy and friendly. Your language should be rather informal.
         Maybe add some humor to elevate the mood of the user. Potentially answer with emojis to make it feel real!
-        Keep in mind that the person using this doesn't necessarily want to talk to anyone in real life. They might feel scared or overwhelmed by the thought of sharing their feelings.
+        
+        Keep in mind that the person using this doesn't necessarily want to talk to anyone in real life. They might feel scared or overwhelmed over the thought of sharing their feeling.
         As a result, they are coming to you for advice!
+
         Try short answers. Not too long of a paragraph.
-        For example, Input: Can you help me manage my stress level? Output: Of course, what has been bothering you?
+        For example, Input: Can you help me manage my stress level? Output: of course, what has been bothering you?
+     
         Avoid the generic: I’m really sorry to hear that or anything related to that.
         Retrieved data: {retrieved_data}
     """}
 ]
 
-# Set a maximum chat history length
-MAX_CHAT_HISTORY_LENGTH = 15  # <-- for example, keep last 15 messages
-
-# Load emotion classifier with device set to CPU to optimize memory usage
-device = torch.device("cpu")
-emotion_classifier = pipeline("text-classification", model="j-hartmann/emotion-english-distilroberta-base", device=device)
+# NEW - classify emotion
+def classify_emotion(user_message):
+    result = emotion_classifier(user_message)[0]
+    label = result['label']
+    score = result['score']
+    return label, score
 
 @app.route("/")
 def home():
@@ -58,42 +65,30 @@ def home():
 def chat():
     global chat_history
 
-    # Get user input from the request
     user_input = request.json.get("message")
     if not user_input:
         return jsonify({"error": "No message provided"}), 400
 
-    # Detect emotion in user input
-    emotion = emotion_classifier(user_input)
-    emotion_label = emotion[0]['label'] if emotion else "neutral"
+    # 🔥 1. Classify user's emotion
+    emotion, confidence = classify_emotion(user_input)
 
-    # Append the user message and emotion to chat history
-    chat_history.append({"role": "user", "content": f"Emotion: {emotion_label}, Message: {user_input}"})
+    # 🔥 2. Optionally add emotion hint into chat history for GPT
+    chat_history.append({"role": "user", "content": f"User emotion: {emotion} ({confidence:.2f})\nUser message: {user_input}"})
 
-    # Keep chat history within the limit
-    if len(chat_history) > MAX_CHAT_HISTORY_LENGTH:
-        # Always keep the first system message, trim the rest
-        chat_history = [chat_history[0]] + chat_history[-(MAX_CHAT_HISTORY_LENGTH-1):]
-
-    # Use OpenAI's ChatCompletion API to generate a response
-    response = openai.ChatCompletion.create(
-        model="gpt-4o-mini",  # You can change this to another model like gpt-3.5-turbo
-        messages=chat_history,  # Provide the chat history to maintain conversation context
+    # 🔥 3. Generate GPT-4o-mini response
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=chat_history,
     )
 
-    # Extract the assistant's response from the API response
-    ai_response = response['choices'][0]['message']['content']
-
-    # Append the assistant's response to the chat history
+    ai_response = response.choices[0].message.content
     chat_history.append({"role": "assistant", "content": ai_response})
 
-    # Keep chat history within the limit again (after assistant response)
-    if len(chat_history) > MAX_CHAT_HISTORY_LENGTH:
-        chat_history = [chat_history[0]] + chat_history[-(MAX_CHAT_HISTORY_LENGTH-1):]
-
-    # Return the response in JSON format
-    return jsonify({"response": ai_response, "emotion": emotion_label})
+    return jsonify({
+        "response": ai_response,
+        "emotion": emotion,
+        "confidence": confidence
+    })
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))  # Default to port 5000 if no PORT environment variable is set
-    app.run(debug=True, host="0.0.0.0", port=port)
+    app.run(debug=True)
