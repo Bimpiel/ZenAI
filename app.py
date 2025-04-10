@@ -1,9 +1,9 @@
 from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
 import chromadb
-from openai import OpenAI
+import openai
 from dotenv import load_dotenv
-from transformers import pipeline  # NEW for emotion classification
+import os
 
 # Load environment variables from .env file
 load_dotenv()
@@ -19,10 +19,6 @@ collection = chroma_client.get_or_create_collection(name="mental_docs")
 
 # OpenAI setup
 openai.api_key = os.getenv("OPENAI_API_KEY")
-client = OpenAI(api_key=openai.api_key)
-
-# Emotion classification setup
-emotion_classifier = pipeline("text-classification", model="bhadresh-savani/distilbert-base-uncased-emotion")
 
 # Retrieve relevant data once per session
 retrieved_data = collection.query(query_texts=["general mental health support"], n_results=5)
@@ -50,12 +46,8 @@ chat_history = [
     """}
 ]
 
-# NEW - classify emotion
-def classify_emotion(user_message):
-    result = emotion_classifier(user_message)[0]
-    label = result['label']
-    score = result['score']
-    return label, score
+# Set a maximum chat history length
+MAX_CHAT_HISTORY_LENGTH = 15  # <-- for example, keep last 15 messages
 
 @app.route("/")
 def home():
@@ -65,30 +57,38 @@ def home():
 def chat():
     global chat_history
 
+    # Get user input from the request
     user_input = request.json.get("message")
     if not user_input:
         return jsonify({"error": "No message provided"}), 400
 
-    # 🔥 1. Classify user's emotion
-    emotion, confidence = classify_emotion(user_input)
+    # Append the user message to chat history
+    chat_history.append({"role": "user", "content": user_input})
 
-    # 🔥 2. Optionally add emotion hint into chat history for GPT
-    chat_history.append({"role": "user", "content": f"User emotion: {emotion} ({confidence:.2f})\nUser message: {user_input}"})
+    # Keep chat history within the limit
+    if len(chat_history) > MAX_CHAT_HISTORY_LENGTH:
+        # Always keep the first system message, trim the rest
+        chat_history = [chat_history[0]] + chat_history[-(MAX_CHAT_HISTORY_LENGTH-1):]
 
-    # 🔥 3. Generate GPT-4o-mini response
-    response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=chat_history,
+    # Use OpenAI's ChatCompletion API to generate a response
+    response = openai.ChatCompletion.create(
+        model="gpt-4o-mini",  # You can change this to another model like gpt-3.5-turbo
+        messages=chat_history,  # Provide the chat history to maintain conversation context
     )
 
-    ai_response = response.choices[0].message.content
+    # Extract the assistant's response from the API response
+    ai_response = response['choices'][0]['message']['content']
+
+    # Append the assistant's response to the chat history
     chat_history.append({"role": "assistant", "content": ai_response})
 
-    return jsonify({
-        "response": ai_response,
-        "emotion": emotion,
-        "confidence": confidence
-    })
+    # Keep chat history within the limit again (after assistant response)
+    if len(chat_history) > MAX_CHAT_HISTORY_LENGTH:
+        chat_history = [chat_history[0]] + chat_history[-(MAX_CHAT_HISTORY_LENGTH-1):]
+
+    # Return the response in JSON format
+    return jsonify({"response": ai_response})
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    port = int(os.environ.get("PORT", 5000))  # Default to port 5000 if no PORT environment variable is set
+    app.run(debug=True, host="0.0.0.0", port=port)
